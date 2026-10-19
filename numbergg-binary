@@ -1,0 +1,133 @@
+import random
+import os
+import math
+
+DIFFICULTY_MODES = {
+    "1": {"name": "Easy", "range": 50, "attempts": 10},
+    "2": {"name": "Medium", "range": 100, "attempts": 7},
+    "3": {"name": "Hard", "range": 200, "attempts": 5}
+}
+SCORE_FILE = "highscores.txt"
+
+def load_high_scores():
+    default = {
+        "Easy": {"name": None, "score": None},
+        "Medium": {"name": None, "score": None},
+        "Hard": {"name": None, "score": None}
+    }
+    
+    if not os.path.exists(SCORE_FILE):
+        return default
+        
+    try:
+        scores = {k: {"name": None, "score": None} for k in default}
+        with open(SCORE_FILE, "r") as f:
+            for line in f:
+                parts = [p.strip() for p in line.strip().split(",")]
+                if len(parts) == 3:
+                    mode, name, score = parts
+                    if mode in scores:
+                        scores[mode]["name"] = None if name == "None" else name
+                        scores[mode]["score"] = None if score == "None" else int(score)
+        return scores
+    except:
+        return default
+
+def save_high_scores(scores):
+    try:
+        with open(SCORE_FILE, "w") as f:
+            for mode, data in scores.items():
+                f.write(f"{mode},{data['name']},{data['score']}\n")
+    except Exception as e:
+        print("Couldn't save score:", e)
+
+def display_high_scores(scores):
+    print("\n--- HIGH SCORES ---")
+    for mode, data in scores.items():
+        if data["score"] is not None:
+            print(f"{mode}: {data['score']} attempts by {data['name']}")
+        else:
+            print(f"{mode}: No record yet")
+    print("-------------------")
+
+def select_difficulty():
+    while True:
+        print("\nSelect Difficulty:")
+        for k, v in DIFFICULTY_MODES.items():
+            print(f"{k}. {v['name']} (1-{v['range']}, {v['attempts']} tries)")
+        
+        choice = input("Choice (1-3): ").strip()
+        if choice in DIFFICULTY_MODES:
+            m = DIFFICULTY_MODES[choice]
+            secret = random.randint(1, m["range"])
+            return m["name"], m["range"], m["attempts"], secret
+        print("Invalid choice, pick 1, 2, or 3.")
+
+def play_round(name, mode, max_range, max_attempts, secret, scores):
+    attempts = 0
+    low = 1
+    high = max_range
+    
+    print(f"\nAlright {name}, playing {mode} mode!")
+    print(f"Guess a number between 1 and {max_range}. You have {max_attempts} tries.")
+
+    while attempts < max_attempts:
+        # Binary search tracker for optimal moves left
+        range_size = high - low + 1
+        optimal_remaining = math.ceil(math.log2(range_size)) if range_size > 0 else 0
+        
+        print(f"\n[Tries left: {max_attempts - attempts} | Optimal moves left: {optimal_remaining}]")
+        print(f"Current range: {low} to {high}")
+        
+        guess_str = input("Your guess: ").strip()
+        if not guess_str.isdigit():
+            print("Numbers only, please!")
+            continue
+            
+        guess = int(guess_str)
+        if not (1 <= guess <= max_range):
+            print(f"Stay within 1 and {max_range}!")
+            continue
+
+        attempts += 1
+
+        if guess < secret:
+            print("Too low!")
+            low = max(low, guess + 1)
+        elif guess > secret:
+            print("Too high!")
+            high = min(high, guess - 1)
+        else:
+            print(f"\nBoom! Got it in {attempts} attempts.")
+            
+            # Check and update high score directly here
+            current_best = scores[mode]["score"]
+            if current_best is None or attempts < current_best:
+                print(f"New high score for {mode} mode!")
+                scores[mode]["name"] = name
+                scores[mode]["score"] = attempts
+                save_high_scores(scores)
+            break
+    else:
+        print(f"\nOut of tries! The number was {secret}.")
+
+def main():
+    print("--- Number Guessing Game ---")
+    name = input("Enter your name: ").strip()
+    if not name:
+        name = "Player"
+        
+    scores = load_high_scores()
+    
+    while True:
+        display_high_scores(scores)
+        mode, max_range, max_attempts, secret = select_difficulty()
+        play_round(name, mode, max_range, max_attempts, secret, scores)
+        
+        again = input("\nPlay again? (y/n): ").strip().lower()
+        if again != 'y':
+            print(f"Thanks for playing, {name}!")
+            break
+
+if __name__ == "__main__":
+    main()
